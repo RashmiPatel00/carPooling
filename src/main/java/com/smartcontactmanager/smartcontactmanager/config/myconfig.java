@@ -1,5 +1,6 @@
 package com.smartcontactmanager.smartcontactmanager.config;
 
+import com.smartcontactmanager.smartcontactmanager.service.UserDetailsServiceImpl;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -11,10 +12,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
-public class myconfig {
+public class MyConfig {
 
     @Bean
-    public UserDetailsService userDetailsService() {
+    public UserDetailsServiceImpl userDetailsService() {
         return new UserDetailsServiceImpl(); // Your custom UserDetailsService implementation
     }
 
