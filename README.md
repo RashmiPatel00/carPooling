@@ -160,8 +160,195 @@ Troubleshooting
 This project is licensed under the MIT License.
 
 
-Author
+CONTROLLER
 
-Your Name
+CustomerUserDetails
+
+package com.smartcontactmanager.smartcontactmanager.config;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import com.smartcontactmanager.smartcontactmanager.Entities.User;
+
+
+public class CustomUserdetail implements UserDetails {
+    private User user;
+
+    public CustomUserdetail(User user) {
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null");
+        }
+        this.user = user;
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        // Ensure the role is not null or empty
+        if (user.getRole() == null) {
+            return Collections.emptyList();
+        }
+        
+        // Prefix the role with "ROLE_" before passing to SimpleGrantedAuthority
+        String rolePrefix = "ROLE_";
+        String role = rolePrefix + user.getRole().name();
+        SimpleGrantedAuthority simpleGrantedAuthority = new SimpleGrantedAuthority(role);
+
+        return List.of(simpleGrantedAuthority);
+    }
+
+    @Override
+    public String getPassword() {
+        return user.getPassword();
+    }
+
+    @Override
+    public String getUsername() {
+        return user.getEmail();
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return user.isEnabled();  // Return the actual enabled status from the User entity
+    }
+}
+
+myconfig.java
+
+package com.smartcontactmanager.smartcontactmanager.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+
+@Configuration
+public class myconfig {
+
+    // Provide your UserDetailsService implementation
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return new USerDetailsServiceImpl(); // Ensure this implementation exists
+    }
+
+    @Bean
+    public BCryptPasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public DaoAuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider();
+        daoAuthenticationProvider.setUserDetailsService(userDetailsService());
+        daoAuthenticationProvider.setPasswordEncoder(passwordEncoder());
+        return daoAuthenticationProvider;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
+        return authConfig.getAuthenticationManager();
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/signin", "/signup", "/home").permitAll() // Public pages
+                .requestMatchers("/user/**").authenticated() // Protected user routes
+                .requestMatchers("/admin/**").hasRole("ADMIN") // Admin-specific pages
+                .requestMatchers("/passengerPage").hasRole("PASSENGER") // Passenger-specific pages
+                .requestMatchers("/driverPage").hasRole("DRIVER") // Driver-specific pages
+                .anyRequest().authenticated() // All other requests must be authenticated
+            )
+            .formLogin(form -> form
+                .permitAll()
+                .loginPage("/signin")
+                .loginProcessingUrl("/dologin")
+                .successHandler(successHandler()) // Use the custom success handler
+                .failureUrl("/signin?error=true")
+            )
+            .logout(logout -> logout
+                .logoutSuccessUrl("/signin?logout=true")
+                .permitAll()
+            )
+            .csrf(csrf -> csrf.disable()); // Disable CSRF for development (enable for production)
+        
+        return http.build();
+    }
+
+    // Custom AuthenticationSuccessHandler to handle redirection based on role
+    @Bean
+    public AuthenticationSuccessHandler successHandler() {
+        return (request, response, authentication) -> {
+            String role = authentication.getAuthorities().toString();
+            if (role.contains("ROLE_PASSENGER")) {
+                response.sendRedirect("/user/index"); // Redirect to passenger page
+            } else if (role.contains("ROLE_DRIVER")) {
+                response.sendRedirect("/driverPage"); // Redirect to driver page
+            } else {
+                response.sendRedirect("/"); // Default page for other roles
+            }
+        };
+    }
+}
+
+USerDetailsServiceImpl
+package com.smartcontactmanager.smartcontactmanager.config;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+
+import com.smartcontactmanager.smartcontactmanager.Entities.User;
+import com.smartcontactmanager.smartcontactmanager.dao.UserRepository;
+
+public class USerDetailsServiceImpl implements UserDetailsService {
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        // Fetching user from the database
+        User user = userRepository.getUserByUserName(username);
+
+        if (user == null) {
+            throw new UsernameNotFoundException("User not found with username: " + username);
+        }
+
+        return new CustomUserdetail(user); // Returning custom UserDetails implementation
+    }
+}
+
+
+
+
 Email:elizabethrashmi044@gmail.com
 GitHub:https://github.com/RashmiPatel00/carPooling
